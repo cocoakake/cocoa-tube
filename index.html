@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube風音楽プレイヤー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+        
+        /* Waveform animation */
+        @keyframes wave {
+            0% { height: 10px; }
+            50% { height: 20px; }
+            100% { height: 10px; }
+        }
+        .wave-bar {
+            animation: wave 1.5s ease-in-out infinite;
+        }
+        .wave-bar:nth-child(2) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.6s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.8s; }
+        
+        /* Custom checkbox */
+        .custom-checkbox {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #3b82f6;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+        }
+        .custom-checkbox:checked {
+            background-color: #3b82f6;
+        }
+        .custom-checkbox:checked::after {
+            content: "✓";
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-gray-800 shadow-lg sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <button id="menu-toggle" class="md:hidden text-gray-300 hover:text-white">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+                <div class="flex items-center">
+                    <i class="fab fa-youtube text-red-600 text-2xl mr-2"></i>
+                    <h1 class="text-xl font-bold">MusicTube</h1>
+                </div>
+            </div>
+            
+            <div class="hidden md:flex flex-1 max-w-2xl mx-4">
+                <div class="relative w-full">
+                    <input type="text" id="search-input" placeholder="曲やアーティストを検索" 
+                           class="w-full bg-gray-700 rounded-l-full py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button id="search-btn" class="absolute right-0 top-0 h-full bg-gray-600 rounded-r-full px-4 hover:bg-gray-500">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" class="text-gray-300 hover:text-white">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button id="user-btn" class="text-gray-300 hover:text-white">
+                    <i class="fas fa-user-circle text-xl"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Mobile Search -->
+        <div id="mobile-search" class="md:hidden px-4 pb-3 hidden">
+            <div class="relative">
+                <input type="text" placeholder="曲やアーティストを検索" 
+                       class="w-full bg-gray-700 rounded-full py-2 px-4 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button class="absolute right-0 top-0 h-full px-4 text-gray-300">
+                    <i class="fas fa-search"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-gray-800 w-64 flex-shrink-0 transform -translate-x-full md:translate-x-0 fixed md:static h-full z-40 transition-transform duration-300">
+            <div class="h-full overflow-y-auto py-4">
+                <div class="px-4">
+                    <button id="add-playlist-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg flex items-center justify-center mb-4">
+                        <i class="fas fa-plus mr-2"></i> 新しいプレイリスト
+                    </button>
+                </div>
+                
+                <div class="border-b border-gray-700 pb-2 mb-2">
+                    <h3 class="px-4 text-gray-400 uppercase text-sm font-semibold">プレイリスト</h3>
+                    <ul id="playlist-list" class="mt-2">
+                        <!-- Playlists will be added here dynamically -->
+                    </ul>
+                </div>
+                
+                <div class="border-b border-gray-700 pb-2 mb-2">
+                    <h3 class="px-4 text-gray-400 uppercase text-sm font-semibold">タグ</h3>
+                    <ul id="tag-list" class="mt-2">
+                        <!-- Tags will be added here dynamically -->
+                    </ul>
+                </div>
+                
+                <div class="px-4 pt-2">
+                    <button id="settings-btn" class="text-gray-300 hover:text-white flex items-center w-full py-2">
+                        <i class="fas fa-cog mr-3"></i> 設定
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Overlay for mobile sidebar -->
+        <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-auto">
+            <!-- Player Section -->
+            <section class="bg-gray-800 p-4">
+                <div class="container mx-auto">
+                    <!-- Video/Audio Player -->
+                    <div class="relative pt-[56.25%] bg-black rounded-lg overflow-hidden">
+                        <div id="player-placeholder" class="absolute inset-0 flex items-center justify-center bg-gray-900">
+                            <div class="text-center">
+                                <i class="fas fa-music text-5xl text-gray-600 mb-4"></i>
+                                <p class="text-gray-400">プレイヤーがここに表示されます</p>
+                            </div>
+                        </div>
+                        <iframe id="youtube-player" class="absolute top-0 left-0 w-full h-full hidden" 
+                                src="" frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen></iframe>
+                        <audio id="audio-player" class="hidden" controls></audio>
+                    </div>
+                    
+                    <!-- Player Controls -->
+                    <div class="mt-4 flex flex-col md:flex-row md:items-center justify-between">
+                        <div class="flex items-center mb-2 md:mb-0">
+                            <button id="play-pause-btn" class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center mr-3">
+                                <i class="fas fa-play text-xl"></i>
+                            </button>
+                            <div>
+                                <h2 id="now-playing-title" class="text-lg font-semibold">再生中の曲</h2>
+                                <p id="now-playing-artist" class="text-gray-400 text-sm">アーティスト名</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-4">
+                            <button id="mode-toggle" class="text-gray-300 hover:text-white" title="動画/音楽モード切替">
+                                <i class="fas fa-film"></i>
+                                <span class="hidden md:inline ml-1">動画モード</span>
+                            </button>
+                            <button id="shuffle-btn" class="text-gray-300 hover:text-white" title="シャッフル">
+                                <i class="fas fa-random"></i>
+                            </button>
+                            <button id="repeat-btn" class="text-gray-300 hover:text-white" title="リピート">
+                                <i class="fas fa-redo"></i>
+                            </button>
+                            <button id="volume-btn" class="text-gray-300 hover:text-white" title="音量">
+                                <i class="fas fa-volume-up"></i>
+                            </button>
+                            <div id="volume-slider" class="hidden w-24">
+                                <input type="range" min="0" max="100" value="80" class="w-full">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Progress Bar -->
+                    <div class="mt-4">
+                        <div class="flex justify-between text-sm text-gray-400 mb-1">
+                            <span id="current-time">0:00</span>
+                            <span id="total-time">0:00</span>
+                        </div>
+                        <div class="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div id="progress-bar" class="h-full bg-blue-600 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Visualizer (shown in audio mode) -->
+                    <div id="audio-visualizer" class="mt-4 hidden">
+                        <div class="flex items-end justify-center space-x-1 h-16">
+                            <div class="wave-bar w-2 bg-blue-500 rounded-t" style="height: 10px"></div>
+                            <div class="wave-bar w-2 bg-blue-500 rounded-t" style="height: 15px"></div>
+                            <div class="wave-bar w-2 bg-blue-500 rounded-t" style="height: 20px"></div>
+                            <div class="wave-bar w-2 bg-blue-500 rounded-t" style="height: 15px"></div>
+                            <div class="wave-bar w-2 bg-blue-500 rounded-t" style="height: 10px"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Playlist Content -->
+            <section class="container mx-auto p-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold" id="current-playlist-name">現在のプレイリスト</h2>
+                    <div class="flex space-x-2">
+                        <button id="add-song-btn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg flex items-center">
+                            <i class="fas fa-plus mr-2"></i> 曲を追加
+                        </button>
+                        <button id="edit-playlist-btn" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg flex items-center">
+                            <i class="fas fa-edit mr-2"></i> 編集
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filter/Sort Controls -->
+                <div class="bg-gray-800 rounded-lg p-3 mb-4">
+                    <div class="flex flex-col md:flex-row md:items-center justify-between space-y-2 md:space-y-0">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-400">フィルター:</span>
+                            <select id="tag-filter" class="bg-gray-700 text-white rounded px-3 py-1 text-sm">
+                                <option value="">すべてのタグ</option>
+                                <!-- Tags will be added here dynamically -->
+                            </select>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-gray-400">並び替え:</span>
+                            <select id="sort-by" class="bg-gray-700 text-white rounded px-3 py-1 text-sm">
+                                <option value="added">追加順</option>
+                                <option value="title">曲名順</option>
+                                <option value="artist">アーティスト順</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Songs Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-gray-800 rounded-lg overflow-hidden">
+                        <thead class="bg-gray-700">
+                            <tr>
+                                <th class="py-3 px-4 text-left text-gray-300 font-semibold text-sm">#</th>
+                                <th class="py-3 px-4 text-left text-gray-300 font-semibold text-sm">タイトル</th>
+                                <th class="py-3 px-4 text-left text-gray-300 font-semibold text-sm">アーティスト</th>
+                                <th class="py-3 px-4 text-left text-gray-300 font-semibold text-sm">タグ</th>
+                                <th class="py-3 px-4 text-left text-gray-300 font-semibold text-sm">長さ</th>
+                                <th class="py-3 px-4 text-left text-gray-300 font-semibold text-sm">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="songs-list" class="divide-y divide-gray-700">
+                            <!-- Songs will be added here dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div id="empty-playlist-message" class="text-center py-10 text-gray-500">
+                    <i class="fas fa-music text-4xl mb-4"></i>
+                    <p class="text-lg">プレイリストに曲がありません</p>
+                    <p class="text-sm mt-2">「曲を追加」ボタンでYouTubeの曲を追加しましょう</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Add Song Modal -->
+    <div id="add-song-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">曲を追加</h3>
+                <button id="close-add-song-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">YouTube URL</label>
+                    <input type="text" id="youtube-url" placeholder="https://www.youtube.com/watch?v=..." 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">タイトル (自動入力)</label>
+                    <input type="text" id="song-title" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">アーティスト (自動入力)</label>
+                    <input type="text" id="song-artist" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">タグ (カンマ区切り)</label>
+                    <input type="text" id="song-tags" placeholder="J-POP, ロック, 2023" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end space-x-2">
+                <button id="cancel-add-song" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                    キャンセル
+                </button>
+                <button id="confirm-add-song" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                    追加
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Playlist Modal -->
+    <div id="add-playlist-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">新しいプレイリスト</h3>
+                <button id="close-add-playlist-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">プレイリスト名</label>
+                    <input type="text" id="playlist-name" placeholder="マイプレイリスト" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">説明 (オプション)</label>
+                    <textarea id="playlist-description" rows="3" 
+                              class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end space-x-2">
+                <button id="cancel-add-playlist" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                    キャンセル
+                </button>
+                <button id="confirm-add-playlist" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                    作成
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Song Modal -->
+    <div id="edit-song-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">曲を編集</h3>
+                <button id="close-edit-song-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">YouTube URL</label>
+                    <input type="text" id="edit-youtube-url" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" disabled>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">タイトル</label>
+                    <input type="text" id="edit-song-title" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">アーティスト</label>
+                    <input type="text" id="edit-song-artist" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-300 mb-2">タグ (カンマ区切り)</label>
+                    <input type="text" id="edit-song-tags" 
+                           class="w-full bg-gray-700 rounded py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-between">
+                <button id="delete-song" class="text-red-500 hover:text-red-400 flex items-center">
+                    <i class="fas fa-trash mr-2"></i> 削除
+                </button>
+                <div class="space-x-2">
+                    <button id="cancel-edit-song" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                        キャンセル
+                    </button>
+                    <button id="confirm-edit-song" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                        保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold">設定</h3>
+                <button id="close-settings-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <div class="mb-6">
+                    <h4 class="text-md font-semibold mb-3">プレイヤー設定</h4>
+                    <div class="space-y-3">
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="autoplay-setting" class="custom-checkbox">
+                            <span>自動再生</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="shuffle-setting" class="custom-checkbox">
+                            <span>シャッフル再生</span>
+                        </label>
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" id="repeat-setting" class="custom-checkbox">
+                            <span>リピート再生</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="text-md font-semibold mb-3">データ管理</h4>
+                    <div class="space-y-3">
+                        <button id="export-data" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-left">
+                            <i class="fas fa-file-export mr-2"></i> データをエクスポート
+                        </button>
+                        <button id="import-data" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded text-left">
+                            <i class="fas fa-file-import mr-2"></i> データをインポート
+                        </button>
+                        <button id="reset-data" class="w-full bg-red-700 hover:bg-red-600 text-white py-2 px-4 rounded text-left">
+                            <i class="fas fa-trash-alt mr-2"></i> データをリセット
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end">
+                <button id="save-settings" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                    保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import/Export Modal -->
+    <div id="data-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 class="text-lg font-semibold" id="data-modal-title">データをエクスポート</h3>
+                <button id="close-data-modal" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4">
+                <textarea id="data-content" rows="10" class="w-full bg-gray-700 rounded py-2 px-3 text-white font-mono text-sm"></textarea>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end space-x-2">
+                <button id="copy-data" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                    <i class="fas fa-copy mr-2"></i> コピー
+                </button>
+                <button id="close-data-modal-btn" class="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
+                    閉じる
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Dialog -->
+    <div id="confirm-dialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md mx-4">
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold" id="confirm-title">確認</h3>
+                <p class="text-gray-300 mt-1" id="confirm-message">本当に実行しますか？</p>
+            </div>
+            <div class="p-4 border-t border-gray-700 flex justify-end space-x-2">
+                <button id="confirm-cancel" class="bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded">
+                    キャンセル
+                </button>
+                <button id="confirm-ok" class="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded">
+                    実行
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        const state = {
+            playlists: [],
+            currentPlaylistIndex: 0,
+            currentSongIndex: -1,
+            isPlaying: false,
+            isVideoMode: true,
+            isShuffle: false,
+            isRepeat: false,
+            volume: 80,
+            tags: [],
+            settings: {
+                autoplay: true,
+                shuffle: false,
+                repeat: false
+            }
+        };
+
+        // DOM Elements
+        const elements = {
+            // Player elements
+            playerPlaceholder: document.getElementById('player-placeholder'),
+            youtubePlayer: document.getElementById('youtube-player'),
+            audioPlayer: document.getElementById('audio-player'),
+            playPauseBtn: document.getElementById('play-pause-btn'),
+            modeToggle: document.getElementById('mode-toggle'),
+            shuffleBtn: document.getElementById('shuffle-btn'),
+            repeatBtn: document.getElementById('repeat-btn'),
+            volumeBtn: document.getElementById('volume-btn'),
+            volumeSlider: document.getElementById('volume-slider'),
+            progressBar: document.getElementById('progress-bar'),
+            currentTime: document.getElementById('current-time'),
+            totalTime: document.getElementById('total-time'),
+            audioVisualizer: document.getElementById('audio-visualizer'),
+            nowPlayingTitle: document.getElementById('now-playing-title'),
+            nowPlayingArtist: document.getElementById('now-playing-artist'),
+            
+            // Playlist elements
+            playlistList: document.getElementById('playlist-list'),
+            currentPlaylistName: document.getElementById('current-playlist-name'),
+            songsList: document.getElementById('songs-list'),
+            emptyPlaylistMessage: document.getElementById('empty-playlist-message'),
+            tagFilter: document.getElementById('tag-filter'),
+            sortBy: document.getElementById('sort-by'),
+            
+            // Tag elements
+            tagList: document.getElementById('tag-list'),
+            
+            // Modal elements
+            addSongModal: document.getElementById('add-song-modal'),
+            addPlaylistModal: document.getElementById('add-playlist-modal'),
+            editSongModal: document.getElementById('edit-song-modal'),
+            settingsModal: document.getElementById('settings-modal'),
+            dataModal: document.getElementById('data-modal'),
+            confirmDialog: document.getElementById('confirm-dialog'),
+            
+            // Form elements
+            youtubeUrl: document.getElementById('youtube-url'),
+            songTitle: document.getElementById('song-title'),
+            songArtist: document.getElementById('song-artist'),
+            songTags: document.getElementById('song-tags'),
+            playlistName: document.getElementById('playlist-name'),
+            playlistDescription: document.getElementById('playlist-description'),
+            editYoutubeUrl: document.getElementById('edit-youtube-url'),
+            editSongTitle: document.getElementById('edit-song-title'),
+            editSongArtist: document.getElementById('edit-song-artist'),
+            editSongTags: document.getElementById('edit-song-tags'),
+            dataContent: document.getElementById('data-content'),
+            
+            // Button elements
+            addSongBtn: document.getElementById('add-song-btn'),
+            editPlaylistBtn: document.getElementById('edit-playlist-btn'),
+            confirmAddSong: document.getElementById('confirm-add-song'),
+            cancelAddSong: document.getElementById('cancel-add-song'),
+            confirmAddPlaylist: document.getElementById('confirm-add-playlist'),
+            cancelAddPlaylist: document.getElementById('cancel-add-playlist'),
+            confirmEditSong: document.getElementById('confirm-edit-song'),
+            cancelEditSong: document.getElementById('cancel-edit-song'),
+            deleteSong: document.getElementById('delete-song'),
+            saveSettings: document.getElementById('save-settings'),
+            closeSettingsModal: document.getElementById('close-settings-modal'),
+            copyData: document.getElementById('copy-data'),
+            closeDataModalBtn: document.getElementById('close-data-modal-btn'),
+            confirmOk: document.getElementById('confirm-ok'),
+            confirmCancel: document.getElementById('confirm-cancel'),
+            
+            // Other UI elements
+            sidebar: document.getElementById('sidebar'),
+            sidebarOverlay: document.getElementById('sidebar-overlay'),
+            menuToggle: document.getElementById('menu-toggle'),
+            themeToggle: document.getElementById('theme-toggle'),
+            searchInput: document.getElementById('search-input'),
+            searchBtn: document.getElementById('search-btn'),
+            addPlaylistBtn: document.getElementById('add-playlist-btn'),
+            settingsBtn: document.getElementById('settings-btn'),
+            exportData: document.getElementById('export-data'),
+            importData: document.getElementById('import-data'),
+            resetData: document.getElementById('reset-data'),
+            autoplaySetting: document.getElementById('autoplay-setting'),
+            shuffleSetting: document.getElementById('shuffle-setting'),
+            repeatSetting: document.getElementById('repeat-setting'),
+            dataModalTitle: document.getElementById('data-modal-title'),
+            confirmTitle: document.getElementById('confirm-title'),
+            confirmMessage: document.getElementById('confirm-message')
+        };
+
+        // Initialize the app
+        function init() {
+            // Load data from localStorage
+            loadData();
+            
+            // Setup event listeners
+            setupEventListeners();
+            
+            // Render initial UI
+            renderPlaylists();
+            renderTags();
+            updatePlayerUI();
+            updatePlaylistUI();
+            
+            // Set initial volume
+            elements.audioPlayer.volume = state.volume / 100;
+            
+            // Apply saved settings
+            applySettings();
+            
+            // Check if we should show the empty playlist message
+            checkEmptyPlaylist();
+        }
+
+        // Load data from localStorage
+        function loadData() {
+            const savedData = localStorage.getItem('musicPlayerData');
+            if (savedData) {
+                const parsedData = JSON.parse(savedData);
+                state.playlists = parsedData.playlists || [];
+                state.currentPlaylistIndex = parsedData.currentPlaylistIndex || 0;
+                state.currentSongIndex = parsedData.currentSongIndex || -1;
+                state.isVideoMode = parsedData.isVideoMode !== undefined ? parsedData.isVideoMode : true;
+                state.isShuffle = parsedData.isShuffle || false;
+                state.isRepeat = parsedData.isRepeat || false;
+                state.volume = parsedData.volume || 80;
+                state.tags = parsedData.tags || [];
+                state.settings = parsedData.settings || {
+                    autoplay: true,
+                    shuffle: false,
+                    repeat: false
+                };
+            } else {
+                // Create a default playlist if none exists
+                state.playlists = [{
+                    id: generateId(),
+                    name: 'マイプレイリスト',
+                    description: '',
+                    songs: []
+                }];
+                state.currentPlaylistIndex = 0;
+                saveData();
+            }
+        }
+
+        // Save data to localStorage
+        function saveData() {
+            const dataToSave = {
+                playlists: state.playlists,
+                currentPlaylistIndex: state.currentPlaylistIndex,
+                currentSongIndex: state.currentSongIndex,
+                isVideoMode: state.isVideoMode,
+                isShuffle: state.isShuffle,
+                isRepeat: state.isRepeat,
+                volume: state.volume,
+                tags: state.tags,
+                settings: state.settings
+            };
+            localStorage.setItem('musicPlayerData', JSON.stringify(dataToSave));
+        }
+
+        // Setup all event listeners
+        function setupEventListeners() {
+            // Player controls
+            elements.playPauseBtn.addEventListener('click', togglePlayPause);
+            elements.modeToggle.addEventListener('click', toggleMode);
+            elements.shuffleBtn.addEventListener('click', toggleShuffle);
+            elements.repeatBtn.addEventListener('click', toggleRepeat);
+            elements.volumeBtn.addEventListener('click', toggleVolumeSlider);
+            
+            // Volume control
+            const volumeSlider = elements.volumeSlider.querySelector('input');
+            volumeSlider.addEventListener('input', (e) => {
+                state.volume = e.target.value;
+                elements.audioPlayer.volume = state.volume / 100;
+                saveData();
+            });
+            
+            // Progress bar
+            elements.progressBar.parentElement.addEventListener('click', (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const pos = (e.clientX - rect.left) / rect.width;
+                seekTo(pos);
+            });
+            
+            // Audio player events
+            elements.audioPlayer.addEventListener('timeupdate', updateProgressBar);
+            elements.audioPlayer.addEventListener('ended', handleSongEnded);
+            elements.audioPlayer.addEventListener('play', () => {
+                state.isPlaying = true;
+                updatePlayerUI();
+            });
+            elements.audioPlayer.addEventListener('pause', () => {
+                state.isPlaying = false;
+                updatePlayerUI();
+            });
+            
+            // Modal controls
+            elements.addSongBtn.addEventListener('click', () => showModal(elements.addSongModal));
+            elements.addPlaylistBtn.addEventListener('click', () => showModal(elements.addPlaylistModal));
+            elements.editPlaylistBtn.addEventListener('click', editCurrentPlaylist);
+            elements.settingsBtn.addEventListener('click', () => showModal(elements.settingsModal));
+            
+            // Add song form
+            elements.confirmAddSong.addEventListener('click', addSongFromForm);
+            elements.cancelAddSong.addEventListener('click', () => hideModal(elements.addSongModal));
+            
+            // Add playlist form
+            elements.confirmAddPlaylist.addEventListener('click', addPlaylistFromForm);
+            elements.cancelAddPlaylist.addEventListener('click', () => hideModal(elements.addPlaylistModal));
+            
+            // Edit song form
+            elements.confirmEditSong.addEventListener('click', saveEditedSong);
+            elements.cancelEditSong.addEventListener('click', () => hideModal(elements.editSongModal));
+            elements.deleteSong.addEventListener('click', confirmDeleteSong);
+            
+            // Settings
+            elements.saveSettings.addEventListener('click', saveSettings);
+            elements.closeSettingsModal.addEventListener('click', () => hideModal(elements.settingsModal));
+            
+            // Data management
+            elements.exportData.addEventListener('click', exportData);
+            elements.importData.addEventListener('click', importData);
+            elements.resetData.addEventListener('click', confirmResetData);
+            elements.copyData.addEventListener('click', copyDataToClipboard);
+            elements.closeDataModalBtn.addEventListener('click', () => hideModal(elements.dataModal));
+            
+            // Confirm dialog
+            elements.confirmOk.addEventListener('click', handleConfirmOk);
+            elements.confirmCancel.addEventListener('click', () => hideModal(elements.confirmDialog));
+            
+            // Close modals when clicking outside
+            document.querySelectorAll('.modal').forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        hideModal(modal);
+                    }
+                });
+            });
+            
+            // UI controls
+            elements.menuToggle.addEventListener('click', toggleSidebar);
+            elements.sidebarOverlay.addEventListener('click', toggleSidebar);
+            elements.themeToggle.addEventListener('click', toggleTheme);
+            elements.searchBtn.addEventListener('click', searchSongs);
+            elements.searchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') searchSongs();
+            });
+            
+            // YouTube URL input change
+            elements.youtubeUrl.addEventListener('change', fetchVideoInfo);
+        }
+
+        // Toggle play/pause
+        function togglePlayPause() {
+            if (state.currentSongIndex === -1 && getCurrentPlaylist().songs.length > 0) {
+                // If no song is selected but playlist has songs, play the first one
+                playSong(0);
+            } else if (state.isPlaying) {
+                pauseSong();
+            } else {
+                playCurrentSong();
+            }
+        }
+
+        // Play current song
+        function playCurrentSong() {
+            const currentPlaylist = getCurrentPlaylist();
+            if (currentPlaylist.songs.length === 0) return;
+            
+            const song = currentPlaylist.songs[state.currentSongIndex];
+            
+            if (state.isVideoMode) {
+                // Video mode - use YouTube iframe
+                elements.youtubePlayer.src = `https://www.youtube.com/embed/${extractVideoId(song.url)}?autoplay=1&enablejsapi=1`;
+                elements.youtubePlayer.classList.remove('hidden');
+                elements.playerPlaceholder.classList.add('hidden');
+                elements.audioPlayer.pause();
+                elements.audioPlayer.classList.add('hidden');
+                elements.audioVisualizer.classList.add('hidden');
+            } else {
+                // Audio mode - use audio element
+                // In a real app, you would need to convert YouTube to audio stream
+                // For demo purposes, we'll just simulate it
+                elements.youtubePlayer.src = '';
+                elements.youtubePlayer.classList.add('hidden');
+                elements.playerPlaceholder.classList.remove('hidden');
+                elements.audioPlayer.classList.remove('hidden');
+                elements.audioVisualizer.classList.remove('hidden');
+                elements.audioPlayer.play();
+            }
+            
+            state.isPlaying = true;
+            updatePlayerUI();
+            
+            // Update now playing info
+            elements.nowPlayingTitle.textContent = song.title;
+            elements.nowPlayingArtist.textContent = song.artist;
+        }
+
+        // Play specific song by index
+        function playSong(index) {
+            state.currentSongIndex = index;
+            saveData();
+            playCurrentSong();
+        }
+
+        // Pause current song
+        function pauseSong() {
+            if (state.isVideoMode) {
+                // For YouTube, we would need to use the YouTube API to pause
+                // This is just a UI demo, so we'll just hide the iframe
+                elements.youtubePlayer.src = '';
+                elements.youtubePlayer.classList.add('hidden');
+                elements.playerPlaceholder.classList.remove('hidden');
+            } else {
+                elements.audioPlayer.pause();
+            }
+            
+            state.isPlaying = false;
+            updatePlayerUI();
+        }
+
+        // Handle song ended
+        function handleSongEnded() {
+            if (state.isRepeat) {
+                // If repeat is on, play the same song again
+                playCurrentSong();
+            } else {
+                // Otherwise, play next song
+                playNextSong();
+            }
+        }
+
+        // Play next song
+        function playNextSong() {
+            const currentPlaylist = getCurrentPlaylist();
+            if (currentPlaylist.songs.length === 0) return;
+            
+            let nextIndex;
+            if (state.isShuffle) {
+                // Shuffle mode - pick random song
+                nextIndex = Math.floor(Math.random() * currentPlaylist.songs.length);
+                // Make sure we don't play the same song again if there are multiple songs
+                while (currentPlaylist.songs.length > 1 && nextIndex === state.currentSongIndex) {
+                    nextIndex = Math.floor(Math.random() * currentPlaylist.songs.length);
+                }
+            } else {
+                // Normal mode - play next song
+                nextIndex = (state.currentSongIndex + 1) % currentPlaylist.songs.length;
+            }
+            
+            playSong(nextIndex);
+        }
+
+        // Play previous song
+        function playPreviousSong() {
+            const currentPlaylist = getCurrentPlaylist();
+            if (currentPlaylist.songs.length === 0) return;
+            
+            let prevIndex;
+            if (state.isShuffle) {
+                // Shuffle mode - pick random song
+                prevIndex = Math.floor(Math.random() * currentPlaylist.songs.length);
+                // Make sure we don't play the same song again if there are multiple songs
+                while (currentPlaylist.songs.length > 1 && prevIndex === state.currentSongIndex) {
+                    prevIndex = Math.floor(Math.random() * currentPlaylist.songs.length);
+                }
+            } else {
+                // Normal mode - play previous song
+                prevIndex = (state.currentSongIndex - 1 + currentPlaylist.songs.length) % currentPlaylist.songs.length;
+            }
+            
+            playSong(prevIndex);
+        }
+
+        // Toggle video/audio mode
+        function toggleMode() {
+            state.isVideoMode = !state.isVideoMode;
+            saveData();
+            updatePlayerUI();
+            
+            if (state.isPlaying) {
+                // If a song is playing, restart it in the new mode
+                playCurrentSong();
+            }
+        }
+
+        // Toggle shuffle
+        function toggleShuffle() {
+            state.isShuffle = !state.isShuffle;
+            saveData();
+            updatePlayerUI();
+        }
+
+        // Toggle repeat
+        function toggleRepeat() {
+            state.isRepeat = !state.isRepeat;
+            saveData();
+            updatePlayerUI();
+        }
+
+        // Toggle volume slider visibility
+        function toggleVolumeSlider() {
+            elements.volumeSlider.classList.toggle('hidden');
+        }
+
+        // Update progress bar
+        function updateProgressBar() {
+            const currentTime = elements.audioPlayer.currentTime;
+            const duration = elements.audioPlayer.duration || 1;
+            const progressPercent = (currentTime / duration) * 100;
+            elements.progressBar.style.width = `${progressPercent}%`;
+            
+            // Update time displays
+            elements.currentTime.textContent = formatTime(currentTime);
+            elements.totalTime.textContent = formatTime(duration);
+        }
+
+        // Seek to position in song
+        function seekTo(position) {
+            if (state.isVideoMode) {
+                // For YouTube, we would need to use the YouTube API to seek
+                // This is just a UI demo
+                elements.progressBar.style.width = `${position * 100}%`;
+            } else {
+                const duration = elements.audioPlayer.duration || 1;
+                elements.audioPlayer.currentTime = duration * position;
+            }
+        }
+
+        // Update player UI based on current state
+        function updatePlayerUI() {
+            // Play/pause button
+            const playPauseIcon = elements.playPauseBtn.querySelector('i');
+            if (state.isPlaying) {
+                playPauseIcon.classList.remove('fa-play');
+                playPauseIcon.classList.add('fa-pause');
+                elements.playPauseBtn.classList.add('bg-blue-700');
+                elements.playPauseBtn.classList.remove('bg-blue-600');
+            } else {
+                playPauseIcon.classList.remove('fa-pause');
+                playPauseIcon.classList.add('fa-play');
+                elements.playPauseBtn.classList.remove('bg-blue-700');
+                elements.playPauseBtn.classList.add('bg-blue-600');
+            }
+            
+            // Mode toggle
+            const modeIcon = elements.modeToggle.querySelector('i');
+            const modeText = elements.modeToggle.querySelector('span');
+            if (state.isVideoMode) {
+                modeIcon.classList.remove('fa-music');
+                modeIcon.classList.add('fa-film');
+                if (modeText) modeText.textContent = '動画モード';
+            } else {
+                modeIcon.classList.remove('fa-film');
+                modeIcon.classList.add('fa-music');
+                if (modeText) modeText.textContent = '音楽モード';
+            }
+            
+            // Shuffle button
+            if (state.isShuffle) {
+                elements.shuffleBtn.classList.add('text-blue-500');
+                elements.shuffleBtn.classList.remove('text-gray-300');
+            } else {
+                elements.shuffleBtn.classList.remove('text-blue-500');
+                elements.shuffleBtn.classList.add('text-gray-300');
+            }
+            
+            // Repeat button
+            if (state.isRepeat) {
+                elements.repeatBtn.classList.add('text-blue-500');
+                elements.repeatBtn.classList.remove('text-gray-300');
+            } else {
+                elements.repeatBtn.classList.remove('text-blue-500');
+                elements.repeatBtn.classList.add('text-gray-300');
+            }
+        }
+
+        // Render playlists in sidebar
+        function renderPlaylists() {
+            elements.playlistList.innerHTML = '';
+            
+            state.playlists.forEach((playlist, index) => {
+                const li = document.createElement('li');
+                li.className = `flex items-center px-4 py-2 cursor-pointer hover:bg-gray-700 ${index === state.currentPlaylistIndex ? 'bg-gray-700' : ''}`;
+                li.innerHTML = `
+                    <i class="fas fa-list-music mr-3 text-gray-400"></i>
+                    <span class="truncate">${playlist.name}</span>
+                    <span class="ml-auto text-xs text-gray-500">${playlist.songs.length}</span>
+                `;
+                li.addEventListener('click', () => {
+                    state.currentPlaylistIndex = index;
+                    state.currentSongIndex = -1;
+                    saveData();
+                    renderPlaylists();
+                    updatePlaylistUI();
+                    checkEmptyPlaylist();
+                });
+                elements.playlistList.appendChild(li);
+            });
+        }
+
+        // Render tags in sidebar and filter dropdown
+        function renderTags() {
+            // Sidebar tags
+            elements.tagList.innerHTML = '';
+            
+            state.tags.forEach(tag => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center px-4 py-2 cursor-pointer hover:bg-gray-700';
+                li.innerHTML = `
+                    <i class="fas fa-tag mr-3 text-gray-400" style="color: ${tag.color || '#3b82f6'}"></i>
+                    <span class="truncate">${tag.name}</span>
+                `;
+                li.addEventListener('click', () => {
+                    // Filter songs by this tag
+                    elements.tagFilter.value = tag.name;
+                    updatePlaylistUI();
+                });
+                elements.tagList.appendChild(li);
+            });
+            
+            // Tag filter dropdown
+            elements.tagFilter.innerHTML = '<option value="">すべてのタグ</option>';
+            state.tags.forEach(tag => {
+                const option = document.createElement('option');
+                option.value = tag.name;
+                option.textContent = tag.name;
+                elements.tagFilter.appendChild(option);
+            });
+        }
+
+        // Update playlist UI (songs list)
+        function updatePlaylistUI() {
+            const currentPlaylist = getCurrentPlaylist();
+            elements.currentPlaylistName.textContent = currentPlaylist.name;
+            
+            // Filter songs by selected tag
+            const selectedTag = elements.tagFilter.value;
+            let filteredSongs = [...currentPlaylist.songs];
+            
+            if (selectedTag) {
+                filteredSongs = filteredSongs.filter(song => 
+                    song.tags && song.tags.includes(selectedTag)
+                );
+            }
+            
+            // Sort songs
+            const sortBy = elements.sortBy.value;
+            filteredSongs.sort((a, b) => {
+                if (sortBy === 'title') return a.title.localeCompare(b.title);
+                if (sortBy === 'artist') return a.artist.localeCompare(b.artist);
+                return 0; // Default is added order
+            });
+            
+            // Render songs
+            elements.songsList.innerHTML = '';
+            
+            filteredSongs.forEach((song, index) => {
+                const originalIndex = currentPlaylist.songs.findIndex(s => s.id === song.id);
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-gray-700 ${originalIndex === state.currentSongIndex ? 'bg-gray-700' : ''}`;
+                
+                // Format duration (in a real app, this would come from YouTube API)
+                const duration = song.duration || '3:45';
+                
+                // Create tags display
+                let tagsDisplay = '';
+                if (song.tags && song.tags.length > 0) {
+                    tagsDisplay = song.tags.map(tag => {
+                        const tagObj = state.tags.find(t => t.name === tag);
+                        const color = tagObj ? tagObj.color : '#3b82f6';
+                        return `<span class="inline-block px-2 py-1 text-xs rounded-full" style="background-color: ${color}20; color: ${color}">${tag}</span>`;
+                    }).join(' ');
+                }
+                
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-gray-400">${originalIndex + 1}</td>
+                    <td class="py-3 px-4 font-medium">${song.title}</td>
+                    <td class="py-3 px-4 text-gray-400">${song.artist}</td>
+                    <td class="py-3 px-4">${tagsDisplay}</td>
+                    <td class="py-3 px-4 text-gray-400">${duration}</td>
+                    <td class="py-3 px-4">
+                        <button class="text-gray-400 hover:text-white mr-2 edit-song-btn" data-id="${song.id}">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="text-gray-400 hover:text-white play-song-btn" data-id="${song.id}">
+                            <i class="fas fa-play"></i>
+                        </button>
+                    </td>
+                `;
+                
+                // Add event listeners to buttons
+                const playBtn = tr.querySelector('.play-song-btn');
+                playBtn.addEventListener('click', () => {
+                    const songIndex = currentPlaylist.songs.findIndex(s => s.id === song.id);
+                    playSong(songIndex);
+                });
+                
+                const editBtn = tr.querySelector('.edit-song-btn');
+                editBtn.addEventListener('click', () => {
+                    showEditSongModal(song.id);
+                });
+                
+                elements.songsList.appendChild(tr);
+            });
+            
+            // Check if we should show the empty playlist message
+            checkEmptyPlaylist();
+        }
+
+        // Check if playlist is empty and show message
+        function checkEmptyPlaylist() {
+            const currentPlaylist = getCurrentPlaylist();
+            if (currentPlaylist.songs.length === 0) {
+                elements.emptyPlaylistMessage.classList.remove('hidden');
+                elements.songsList.classList.add('hidden');
+            } else {
+                elements.emptyPlaylistMessage.classList.add('hidden');
+                elements.songsList.classList.remove('hidden');
+            }
+        }
+
+        // Get current playlist
+        function getCurrentPlaylist() {
+            return state.playlists[state.currentPlaylistIndex];
+        }
+
+        // Add new playlist from form
+        function addPlaylistFromForm() {
+            const name = elements.playlistName.value.trim();
+            const description = elements.playlistDescription.value.trim();
+            
+            if (!name) {
+                alert('プレイリスト名を入力してください');
+                return;
+            }
+            
+            const newPlaylist = {
+                id: generateId(),
+                name,
+                description,
+                songs: []
+            };
+            
+            state.playlists.push(newPlaylist);
+            state.currentPlaylistIndex = state.playlists.length - 1;
+            saveData();
+            
+            // Reset form and hide modal
+            elements.playlistName.value = '';
+            elements.playlistDescription.value = '';
+            hideModal(elements.addPlaylistModal);
+            
+            // Update UI
+            renderPlaylists();
+            updatePlaylistUI();
+            checkEmptyPlaylist();
+        }
+
+        // Edit current playlist
+        function editCurrentPlaylist() {
+            const currentPlaylist = getCurrentPlaylist();
+            elements.playlistName.value = currentPlaylist.name;
+            elements.playlistDescription.value = currentPlaylist.description;
+            
+            // Change modal title and confirm button
+            elements.addPlaylistModal.querySelector('h3').textContent = 'プレイリストを編集';
+            elements.confirmAddPlaylist.textContent = '保存';
+            
+            // Remove previous event listener
+            elements.confirmAddPlaylist.replaceWith(elements.confirmAddPlaylist.cloneNode(true));
+            elements.confirmAddPlaylist = document.getElementById('confirm-add-playlist');
+            
+            // Add new event listener for saving edits
+            elements.confirmAddPlaylist.addEventListener('click', () => {
+                const name = elements.playlistName.value.trim();
+                const description = elements.playlistDescription.value.trim();
+                
+                if (!name) {
+                    alert('プレイリスト名を入力してください');
+                    return;
+                }
+                
+                currentPlaylist.name = name;
+                currentPlaylist.description = description;
+                saveData();
+                
+                // Reset form and hide modal
+                elements.playlistName.value = '';
+                elements.playlistDescription.value = '';
+                hideModal(elements.addPlaylistModal);
+                
+                // Update UI
+                renderPlaylists();
+                updatePlaylistUI();
+                
+                // Reset modal to add mode
+                elements.addPlaylistModal.querySelector('h3').textContent = '新しいプレイリスト';
+                elements.confirmAddPlaylist.textContent = '作成';
+            });
+            
+            showModal(elements.addPlaylistModal);
+        }
+
+        // Fetch video info from YouTube URL
+        function fetchVideoInfo() {
+            const url = elements.youtubeUrl.value.trim();
+            if (!url) return;
+            
+            const videoId = extractVideoId(url);
+            if (!videoId) {
+                alert('有効なYouTube URLを入力してください');
+                return;
+            }
+            
+            // In a real app, you would use the YouTube API to fetch video info
+            // For demo purposes, we'll just simulate it with placeholder data
+            setTimeout(() => {
+                elements.songTitle.value = 'サンプル曲のタイトル';
+                elements.songArtist.value = 'サンプルアーティスト';
+            }, 500);
+        }
+
+        // Add new song from form
+        function addSongFromForm() {
+            const url = elements.youtubeUrl.value.trim();
+            const title = elements.songTitle.value.trim();
+            const artist = elements.songArtist.value.trim();
+            const tagsInput = elements.songTags.value.trim();
+            
+            if (!url) {
+                alert('YouTube URLを入力してください');
+                return;
+            }
+            
+            const videoId = extractVideoId(url);
+            if (!videoId) {
+                alert('有効なYouTube URLを入力してください');
+                return;
+            }
+            
+            if (!title) {
+                alert('曲のタイトルを入力してください');
+                return;
+            }
+            
+            // Process tags
+            const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+            
+            // Add new tags to state if they don't exist
+            tags.forEach(tagName => {
+                if (!state.tags.some(tag => tag.name === tagName)) {
+                    state.tags.push({
+                        name: tagName,
+                        color: getRandomColor()
+                    });
+                }
+            });
+            
+            const newSong = {
+                id: generateId(),
+                url,
+                title,
+                artist,
+                tags,
+                addedAt: new Date().toISOString()
+            };
+            
+            // Add song to current playlist
+            const currentPlaylist = getCurrentPlaylist();
+            currentPlaylist.songs.push(newSong);
+            saveData();
+            
+            // Reset form and hide modal
+            elements.youtubeUrl.value = '';
+            elements.songTitle.value = '';
+            elements.songArtist.value = '';
+            elements.songTags.value = '';
+            hideModal(elements.addSongModal);
+            
+            // Update UI
+            renderTags();
+            updatePlaylistUI();
+            checkEmptyPlaylist();
+        }
+
+        // Show edit song modal
+        function showEditSongModal(songId) {
+            const currentPlaylist = getCurrentPlaylist();
+            const song = currentPlaylist.songs.find(s => s.id === songId);
+            
+            if (!song) return;
+            
+            // Fill form with song data
+            elements.editYoutubeUrl.value = song.url;
+            elements.editSongTitle.value = song.title;
+            elements.editSongArtist.value = song.artist;
+            elements.editSongTags.value = song.tags ? song.tags.join(', ') : '';
+            
+            // Store song ID in modal for saving
+            elements.editSongModal.dataset.songId = songId;
+            
+            showModal(elements.editSongModal);
+        }
+
+        // Save edited song
+        function saveEditedSong() {
+            const songId = elements.editSongModal.dataset.songId;
+            const currentPlaylist = getCurrentPlaylist();
+            const songIndex = currentPlaylist.songs.findIndex(s => s.id === songId);
+            
+            if (songIndex === -1) return;
+            
+            const title = elements.editSongTitle.value.trim();
+            const artist = elements.editSongArtist.value.trim();
+            const tagsInput = elements.editSongTags.value.trim();
+            
+            if (!title) {
+                alert('曲のタイトルを入力してください');
+                return;
+            }
+            
+            // Process tags
+            const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+            
+            // Add new tags to state if they don't exist
+            tags.forEach(tagName => {
+                if (!state.tags.some(tag => tag.name === tagName)) {
+                    state.tags.push({
+                        name: tagName,
+                        color: getRandomColor()
+                    });
+                }
+            });
+            
+            // Update song
+            currentPlaylist.songs[songIndex].title = title;
+            currentPlaylist.songs[songIndex].artist = artist;
+            currentPlaylist.songs[songIndex].tags = tags;
+            
+            saveData();
+            
+            // Hide modal
+            hideModal(elements.editSongModal);
+            
+            // Update UI
+            renderTags();
+            updatePlaylistUI();
+            
+            // If this is the currently playing song, update now playing info
+            if (state.currentSongIndex === songIndex) {
+                elements.nowPlayingTitle.textContent = title;
+                elements.nowPlayingArtist.textContent = artist;
+            }
+        }
+
+        // Confirm song deletion
+        function confirmDeleteSong() {
+            const songId = elements.editSongModal.dataset.songId;
+            const currentPlaylist = getCurrentPlaylist();
+            const song = currentPlaylist.songs.find(s => s.id === songId);
+            
+            if (!song) return;
+            
+            showConfirmDialog(
+                '曲を削除',
+                `「${song.title}」をプレイリストから削除しますか？`,
+                () => {
+                    deleteSongById(songId);
+                    hideModal(elements.editSongModal);
+                }
+            );
+        }
+
+        // Delete song by ID
+        function deleteSongById(songId) {
+            const currentPlaylist = getCurrentPlaylist();
+            const songIndex = currentPlaylist.songs.findIndex(s => s.id === songId);
+            
+            if (songIndex === -1) return;
+            
+            // Remove song from playlist
+            currentPlaylist.songs.splice(songIndex, 1);
+            
+            // Update current song index if needed
+            if (state.currentSongIndex === songIndex) {
+                state.currentSongIndex = -1;
+                pauseSong();
+            } else if (state.currentSongIndex > songIndex) {
+                state.currentSongIndex--;
+            }
+            
+            saveData();
+            
+            // Update UI
+            updatePlaylistUI();
+            checkEmptyPlaylist();
+        }
+
+        // Save settings
+        function saveSettings() {
+            state.settings = {
+                autoplay: elements.autoplaySetting.checked,
+                shuffle: elements.shuffleSetting.checked,
+                repeat: elements.repeatSetting.checked
+            };
+            
+            // Update player state to match settings
+            state.isShuffle = state.settings.shuffle;
+            state.isRepeat = state.settings.repeat;
+            
+            saveData();
+            updatePlayerUI();
+            hideModal(elements.settingsModal);
+        }
+
+        // Apply saved settings to UI
+        function applySettings() {
+            elements.autoplaySetting.checked = state.settings.autoplay;
+            elements.shuffleSetting.checked = state.settings.shuffle;
+            elements.repeatSetting.checked = state.settings.repeat;
+            
+            state.isShuffle = state.settings.shuffle;
+            state.isRepeat = state.settings.repeat;
+            
+            updatePlayerUI();
+        }
+
+        // Export data
+        function exportData() {
+            const dataToExport = {
+                playlists: state.playlists,
+                tags: state.tags,
+                settings: state.settings
+            };
+            
+            elements.dataContent.value = JSON.stringify(dataToExport, null, 2);
+            elements.dataModalTitle.textContent = 'データをエクスポート';
+            showModal(elements.dataModal);
+        }
+
+        // Import data
+        function importData() {
+            showConfirmDialog(
+                'データをインポート',
+                '現在のデータが上書きされます。続行しますか？',
+                () => {
+                    try {
+                        const importedData = JSON.parse(elements.dataContent.value);
+                        
+                        if (!importedData.playlists || !Array.isArray(importedData.playlists)) {
+                            throw new Error('無効なデータ形式です');
+                        }
+                        
+                        state.playlists = importedData.playlists;
+                        state.tags = importedData.tags || [];
+                        state.settings = importedData.settings || {
+                            autoplay: true,
+                            shuffle: false,
+                            repeat: false
+                        };
+                        
+                        // Reset current song and playlist
+                        state.currentPlaylistIndex = 0;
+                        state.currentSongIndex = -1;
+                        
+                        saveData();
+                        
+                        // Update UI
+                        renderPlaylists();
+                        renderTags();
+                        updatePlaylistUI();
+                        applySettings();
+                        checkEmptyPlaylist();
+                        
+                        hideModal(elements.dataModal);
+                        alert('データのインポートが成功しました');
+                    } catch (error) {
+                        alert('データのインポートに失敗しました: ' + error.message);
+                    }
+                }
+            );
+            
+            elements.dataContent.value = '';
+            elements.dataModalTitle.textContent = 'データをインポート';
+            showModal(elements.dataModal);
+        }
+
+        // Confirm reset data
+        function confirmResetData() {
+            showConfirmDialog(
+                'データをリセット',
+                'すべてのプレイリストと設定が削除されます。続行しますか？',
+                () => {
+                    // Reset to default state
+                    state.playlists = [{
+                        id: generateId(),
+                        name: 'マイプレイリスト',
+                        description: '',
+                        songs: []
+                    }];
+                    state.currentPlaylistIndex = 0;
+                    state.currentSongIndex = -1;
+                    state.tags = [];
+                    state.settings = {
+                        autoplay: true,
+                        shuffle: false,
+                        repeat: false
+                    };
+                    
+                    saveData();
+                    
+                    // Update UI
+                    renderPlaylists();
+                    renderTags();
+                    updatePlaylistUI();
+                    applySettings();
+                    checkEmptyPlaylist();
+                    
+                    hideModal(elements.settingsModal);
+                    alert('データがリセットされました');
+                }
+            );
+        }
+
+        // Copy data to clipboard
+        function copyDataToClipboard() {
+            elements.dataContent.select();
+            document.execCommand('copy');
+            alert('データがクリップボードにコピーされました');
+        }
+
+        // Show confirm dialog
+        function showConfirmDialog(title, message, onConfirm) {
+            elements.confirmTitle.textContent = title;
+            elements.confirmMessage.textContent = message;
+            
+            // Store confirm callback
+            elements.confirmDialog.dataset.confirmCallback = '';
+            if (onConfirm) {
+                elements.confirmDialog.dataset.confirmCallback = 'onConfirm';
+                window.onConfirm = onConfirm;
+            }
+            
+            showModal(elements.confirmDialog);
+        }
+
+        // Handle confirm OK
+        function handleConfirmOk() {
+            if (elements.confirmDialog.dataset.confirmCallback === 'onConfirm' && typeof window.onConfirm === 'function') {
+                window.onConfirm();
+            }
+            hideModal(elements.confirmDialog);
+        }
+
+        // Search songs
+        function searchSongs() {
+            const query = elements.searchInput.value.trim().toLowerCase();
+            if (!query) return;
+            
+            const currentPlaylist = getCurrentPlaylist();
+            const results = currentPlaylist.songs.filter(song => 
+                song.title.toLowerCase().includes(query) || 
+                song.artist.toLowerCase().includes(query) ||
+                (song.tags && song.tags.some(tag => tag.toLowerCase().includes(query)))
+            );
+            
+            // Highlight search results in the table
+            const rows = elements.songsList.querySelectorAll('tr');
+            rows.forEach(row => {
+                const songTitle = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                const songArtist = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                const songTags = row.querySelector('td:nth-child(4)').textContent.toLowerCase();
+                
+                if (songTitle.includes(query) || songArtist.includes(query) || songTags.includes(query)) {
+                    row.classList.add('bg-blue-900');
+                    row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    row.classList.remove('bg-blue-900');
+                }
+            });
+        }
+
+        // Toggle sidebar on mobile
+        function toggleSidebar() {
+            elements.sidebar.classList.toggle('translate-x-0');
+            elements.sidebarOverlay.classList.toggle('hidden');
+            
+            // Prevent scrolling when sidebar is open
+            if (!elements.sidebarOverlay.classList.contains('hidden')) {
+                document.body.style.overflow = 'hidden';
+            } else {
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Toggle theme (not fully implemented in this demo)
+        function toggleTheme() {
+            const icon = elements.themeToggle.querySelector('i');
+            if (icon.classList.contains('fa-moon')) {
+                icon.classList.remove('fa-moon');
+                icon.classList.add('fa-sun');
+                // In a real app, you would switch to light theme here
+            } else {
+                icon.classList.remove('fa-sun');
+                icon.classList.add('fa-moon');
+                // In a real app, you would switch to dark theme here
+            }
+        }
+
+        // Show modal
+        function showModal(modal) {
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // Hide modal
+        function hideModal(modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // Extract video ID from YouTube URL
+        function extractVideoId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        // Format time (seconds to MM:SS)
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        // Generate random ID
+        function generateId() {
+            return Math.random().toString(36).substr(2, 9);
+        }
+
+        // Get random color for tags
+        function getRandomColor() {
+            const colors = [
+                '#3b82f6', // blue-500
+                '#ef4444', // red-500
+                '#10b981', // emerald-500
+                '#f59e0b', // amber-500
+                '#8b5cf6', // violet-500
+                '#ec4899', // pink-500
+                '#14b8a6', // teal-500
+                '#f97316'  // orange-500
+            ];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
